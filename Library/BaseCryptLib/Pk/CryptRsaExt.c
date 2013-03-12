@@ -1,6 +1,12 @@
 /** @file
   RSA Asymmetric Cipher Wrapper Implementation over OpenSSL.
 
+  This file implements following APIs which provide more capabilities for RSA:
+  1) RsaGetKey
+  2) RsaGenerateKey
+  3) RsaCheckKey
+  4) RsaPkcs1Sign
+
 Copyright (c) 2009 - 2012, Intel Corporation. All rights reserved.<BR>
 This program and the accompanying materials
 are licensed and made available under the terms and conditions of the BSD License
@@ -36,213 +42,6 @@ CONST UINT8  Asn1IdSha256[] = {
   0x48, 0x01, 0x65, 0x03, 0x04, 0x02, 0x01, 0x05,
   0x00, 0x04, 0x20
   };
-
-
-/**
-  Allocates and initializes one RSA context for subsequent use.
-
-  @return  Pointer to the RSA context that has been initialized.
-           If the allocations fails, RsaNew() returns NULL.
-
-**/
-VOID *
-EFIAPI
-RsaNew (
-  VOID
-  )
-{
-  //
-  // Allocates & Initializes RSA Context by OpenSSL RSA_new()
-  //
-  return (VOID *)RSA_new ();
-}
-
-/**
-  Release the specified RSA context.
-
-  If RsaContext is NULL, then return FALSE.
-
-  @param[in]  RsaContext  Pointer to the RSA context to be released.
-
-**/
-VOID
-EFIAPI
-RsaFree (
-  IN  VOID  *RsaContext
-  )
-{
-  //
-  // Free OpenSSL RSA Context
-  //
-  RSA_free ((RSA *)RsaContext);
-}
-
-/**
-  Sets the tag-designated key component into the established RSA context.
-
-  This function sets the tag-designated RSA key component into the established
-  RSA context from the user-specified non-negative integer (octet string format
-  represented in RSA PKCS#1).
-  If BigNumber is NULL, then the specified key componenet in RSA context is cleared.
-
-  If RsaContext is NULL, then return FALSE.
-
-  @param[in, out]  RsaContext  Pointer to RSA context being set.
-  @param[in]       KeyTag      Tag of RSA key component being set.
-  @param[in]       BigNumber   Pointer to octet integer buffer.
-                               If NULL, then the specified key componenet in RSA
-                               context is cleared.
-  @param[in]       BnSize      Size of big number buffer in bytes.
-                               If BigNumber is NULL, then it is ignored.
-
-  @retval  TRUE   RSA key component was set successfully.
-  @retval  FALSE  Invalid RSA key component tag.
-
-**/
-BOOLEAN
-EFIAPI
-RsaSetKey (
-  IN OUT  VOID         *RsaContext,
-  IN      RSA_KEY_TAG  KeyTag,
-  IN      CONST UINT8  *BigNumber,
-  IN      UINTN        BnSize
-  )
-{
-  RSA  *RsaKey;
-
-  //
-  // Check input parameters.
-  //
-  if (RsaContext == NULL) {
-    return FALSE;
-  }
-
-  RsaKey = (RSA *)RsaContext;
-  //
-  // Set RSA Key Components by converting octet string to OpenSSL BN representation.
-  // NOTE: For RSA public key (used in signature verification), only public components
-  //       (N, e) are needed.
-  //
-  switch (KeyTag) {
-
-  //
-  // RSA Public Modulus (N)
-  //
-  case RsaKeyN:
-    if (RsaKey->n != NULL) {
-      BN_free (RsaKey->n);
-    }
-    RsaKey->n = NULL;
-    if (BigNumber == NULL) {
-      break;
-    }
-    RsaKey->n = BN_bin2bn (BigNumber, (UINT32) BnSize, RsaKey->n);
-    break;
-
-  //
-  // RSA Public Exponent (e)
-  //
-  case RsaKeyE:
-    if (RsaKey->e != NULL) {
-      BN_free (RsaKey->e);
-    }
-    RsaKey->e = NULL;
-    if (BigNumber == NULL) {
-      break;
-    }
-    RsaKey->e = BN_bin2bn (BigNumber, (UINT32) BnSize, RsaKey->e);
-    break;
-
-  //
-  // RSA Private Exponent (d)
-  //
-  case RsaKeyD:
-    if (RsaKey->d != NULL) {
-      BN_free (RsaKey->d);
-    }
-    RsaKey->d = NULL;
-    if (BigNumber == NULL) {
-      break;
-    }
-    RsaKey->d = BN_bin2bn (BigNumber, (UINT32) BnSize, RsaKey->d);
-    break;
-
-  //
-  // RSA Secret Prime Factor of Modulus (p)
-  //
-  case RsaKeyP:
-    if (RsaKey->p != NULL) {
-      BN_free (RsaKey->p);
-    }
-    RsaKey->p = NULL;
-    if (BigNumber == NULL) {
-      break;
-    }
-    RsaKey->p = BN_bin2bn (BigNumber, (UINT32) BnSize, RsaKey->p);
-    break;
-
-  //
-  // RSA Secret Prime Factor of Modules (q)
-  //
-  case RsaKeyQ:
-    if (RsaKey->q != NULL) {
-      BN_free (RsaKey->q);
-    }
-    RsaKey->q = NULL;
-    if (BigNumber == NULL) {
-      break;
-    }
-    RsaKey->q = BN_bin2bn (BigNumber, (UINT32) BnSize, RsaKey->q);
-    break;
-
-  //
-  // p's CRT Exponent (== d mod (p - 1))
-  //
-  case RsaKeyDp:
-    if (RsaKey->dmp1 != NULL) {
-      BN_free (RsaKey->dmp1);
-    }
-    RsaKey->dmp1 = NULL;
-    if (BigNumber == NULL) {
-      break;
-    }
-    RsaKey->dmp1 = BN_bin2bn (BigNumber, (UINT32) BnSize, RsaKey->dmp1);
-    break;
-
-  //
-  // q's CRT Exponent (== d mod (q - 1))
-  //
-  case RsaKeyDq:
-    if (RsaKey->dmq1 != NULL) {
-      BN_free (RsaKey->dmq1);
-    }
-    RsaKey->dmq1 = NULL;
-    if (BigNumber == NULL) {
-      break;
-    }
-    RsaKey->dmq1 = BN_bin2bn (BigNumber, (UINT32) BnSize, RsaKey->dmq1);
-    break;
-
-  //
-  // The CRT Coefficient (== 1/q mod p)
-  //
-  case RsaKeyQInv:
-    if (RsaKey->iqmp != NULL) {
-      BN_free (RsaKey->iqmp);
-    }
-    RsaKey->iqmp = NULL;
-    if (BigNumber == NULL) {
-      break;
-    }
-    RsaKey->iqmp = BN_bin2bn (BigNumber, (UINT32) BnSize, RsaKey->iqmp);
-    break;
-
-  default:
-    return FALSE;
-  }
-
-  return TRUE;
-}
 
 /**
   Gets the tag-designated RSA key component from the established RSA context.
@@ -432,22 +231,32 @@ RsaGenerateKey (
   //
   // Check input parameters.
   //
-  if (RsaContext == NULL) {
+  if (RsaContext == NULL || ModulusLength > INT_MAX || PublicExponentSize > INT_MAX) {
     return FALSE;
   }
   
   KeyE = BN_new ();
-  if (PublicExponent == NULL) {
-    BN_set_word (KeyE, 0x10001);
-  } else {
-    BN_bin2bn (PublicExponent, (UINT32) PublicExponentSize, KeyE);
+  if (KeyE == NULL) {
+    return FALSE;
   }
 
   RetVal = FALSE;
+  
+  if (PublicExponent == NULL) {
+    if (BN_set_word (KeyE, 0x10001) == 0) {
+      goto _Exit;
+    }
+  } else {
+    if (BN_bin2bn (PublicExponent, (UINT32) PublicExponentSize, KeyE) == NULL) {
+      goto _Exit;
+    }
+  }
+
   if (RSA_generate_key_ex ((RSA *) RsaContext, (UINT32) ModulusLength, KeyE, NULL) == 1) {
    RetVal = TRUE;
   }
 
+_Exit:
   BN_free (KeyE);
   return RetVal;
 }
@@ -500,18 +309,24 @@ RsaCheckKey (
 /**
   Performs the PKCS1-v1_5 encoding methods defined in RSA PKCS #1.
 
-  @param  Message      Message buffer to be encoded.
-  @param  MessageSize  Size of message buffer in bytes.
-  @param  DigestInfo   Pointer to buffer of digest info for output.
+  @param[in]     Message        Message buffer to be encoded.
+  @param[in]     MessageSize    Size of message buffer in bytes.
+  @param[out]    DigestInfo     Pointer to buffer of digest info for output.
+  @param[in,out] DigestInfoSize On input, the size of DigestInfo buffer in bytes.
+                                On output, the size of data returned in DigestInfo
+                                buffer in bytes.
 
-  @return  Size of DigestInfo in bytes.
+  @retval TRUE   PKCS1-v1_5 encoding finished successfully.
+  @retval FALSE  Any input parameter is invalid.
+  @retval FALSE  DigestInfo buffer is not large enough.
 
 **/  
-UINTN
+BOOLEAN
 DigestInfoEncoding (
-  IN   CONST UINT8  *Message,
-  IN   UINTN        MessageSize,
-  OUT  UINT8        *DigestInfo
+  IN CONST UINT8  *Message,
+  IN       UINTN  MessageSize,
+  OUT      UINT8  *DigestInfo,
+  IN OUT   UINTN  *DigestInfoSize
   )
 {
   CONST UINT8  *HashDer;
@@ -520,7 +335,7 @@ DigestInfoEncoding (
   //
   // Check input parameters.
   //
-  if (Message == NULL || DigestInfo == NULL) {
+  if (Message == NULL || DigestInfo == NULL || DigestInfoSize == NULL) {
     return FALSE;
   }
 
@@ -548,10 +363,16 @@ DigestInfoEncoding (
     return FALSE;
   }
 
+  if (*DigestInfoSize < DerSize + MessageSize) {
+    *DigestInfoSize = DerSize + MessageSize;
+    return FALSE;
+  }
+
   CopyMem (DigestInfo, HashDer, DerSize);
   CopyMem (DigestInfo + DerSize, Message, MessageSize);
 
-  return (DerSize + MessageSize);
+  *DigestInfoSize = DerSize + MessageSize;
+  return TRUE;
 }
 
 /**
@@ -613,110 +434,23 @@ RsaPkcs1Sign (
     return FALSE;
   }
 
-  Size = DigestInfoEncoding (MessageHash, HashSize, Signature);
+  if (!DigestInfoEncoding (MessageHash, HashSize, Signature, SigSize)) {
+    return FALSE;
+  }
 
   ReturnVal = RSA_private_encrypt (
-                (UINT32) Size,
+                (UINT32) *SigSize,
                 Signature,
                 Signature,
                 Rsa,
                 RSA_PKCS1_PADDING
                 );
 
-  if (ReturnVal < (INTN) Size) {
+  if (ReturnVal < (INTN) *SigSize) {
     return FALSE;
   }
 
-  *SigSize = (UINTN)ReturnVal;
+  *SigSize = (UINTN) ReturnVal;
   return TRUE;
 }
 
-/**
-  Verifies the RSA-SSA signature with EMSA-PKCS1-v1_5 encoding scheme defined in
-  RSA PKCS#1.
-
-  If RsaContext is NULL, then return FALSE.
-  If MessageHash is NULL, then return FALSE.
-  If Signature is NULL, then return FALSE.
-  If HashSize is not equal to the size of MD5, SHA-1 or SHA-256 digest, then return FALSE.
-
-  @param[in]  RsaContext   Pointer to RSA context for signature verification.
-  @param[in]  MessageHash  Pointer to octet message hash to be checked.
-  @param[in]  HashSize     Size of the message hash in bytes.
-  @param[in]  Signature    Pointer to RSA PKCS1-v1_5 signature to be verified.
-  @param[in]  SigSize      Size of signature in bytes.
-
-  @retval  TRUE   Valid signature encoded in PKCS1-v1_5.
-  @retval  FALSE  Invalid signature or invalid RSA context.
-
-**/
-BOOLEAN
-EFIAPI
-RsaPkcs1Verify (
-  IN  VOID         *RsaContext,
-  IN  CONST UINT8  *MessageHash,
-  IN  UINTN        HashSize,
-  IN  UINT8        *Signature,
-  IN  UINTN        SigSize
-  )
-{
-  INTN     Length;
-
-  //
-  // Check input parameters.
-  //
-  if (RsaContext == NULL || MessageHash == NULL || Signature == NULL) {
-    return FALSE;
-  }
-
-  
-  //
-  // Check for unsupported hash size:
-  //    Only MD5, SHA-1 or SHA-256 digest size is supported
-  //
-  if (HashSize != MD5_DIGEST_SIZE && HashSize != SHA1_DIGEST_SIZE && HashSize != SHA256_DIGEST_SIZE) {
-    return FALSE;
-  }
-  
-  //
-  // RSA PKCS#1 Signature Decoding using OpenSSL RSA Decryption with Public Key
-  //
-  Length = RSA_public_decrypt (
-             (UINT32) SigSize,
-             Signature,
-             Signature,
-             RsaContext,
-             RSA_PKCS1_PADDING
-             );
-
-  //
-  // Invalid RSA Key or PKCS#1 Padding Checking Failed (if Length < 0)
-  // NOTE: Length should be the addition of HashSize and some DER value.
-  //       Ignore more strict length checking here.
-  //
-  if (Length < (INTN) HashSize) {
-    return FALSE;
-  }
-
-  //
-  // Validate the MessageHash and Decoded Signature
-  // NOTE: The decoded Signature should be the DER encoding of the DigestInfo value
-  //       DigestInfo ::= SEQUENCE {
-  //           digestAlgorithm AlgorithmIdentifier
-  //           digest OCTET STRING
-  //       }
-  //       Then Memory Comparing should skip the DER value of the underlying SEQUENCE
-  //       type and AlgorithmIdentifier.
-  //
-  if (CompareMem (MessageHash, Signature + Length - HashSize, HashSize) == 0) {
-    //
-    // Valid RSA PKCS#1 Signature
-    //
-    return TRUE;
-  } else {
-    //
-    // Failed to verification
-    //
-    return FALSE;
-  }
-}
